@@ -1,6 +1,48 @@
-name: Build ZMK firmware
+name: Build ZMK
 on: [push, pull_request, workflow_dispatch]
-
 jobs:
   build:
-    uses: zmkfirmware/zmk/.github/workflows/build-user-config.yml@main
+    runs-on: ubuntu-latest
+    name: Build Firmware
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            modules
+            tools
+            zephyr
+            bootloader
+            zmk
+          key: ${{ runner.os }}-build-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-build-
+      - name: Install West
+        run: pip3 install west
+      - name: Init West
+        run: west init -l config
+      - name: Update modules
+        run: west update
+      - name: Export Zephyr
+        run: west zephyr-export
+      - name: Build Dongle
+        run: west build -s zmk/app -b nice_nano_v2 -- -DSHIELD=corne_dongle -DZMK_CONFIG="${GITHUB_WORKSPACE}/config"
+      - name: Rename Dongle Artifact
+        run: cp build/zephyr/zmk.uf2 corne_dongle.uf2
+      - name: Build Left
+        run: west build -p -s zmk/app -b nice_nano_v2 -- -DSHIELD=corne_left -DZMK_CONFIG="${GITHUB_WORKSPACE}/config"
+      - name: Rename Left Artifact
+        run: cp build/zephyr/zmk.uf2 corne_left.uf2
+      - name: Build Right
+        run: west build -p -s zmk/app -b nice_nano_v2 -- -DSHIELD=corne_right -DZMK_CONFIG="${GITHUB_WORKSPACE}/config"
+      - name: Rename Right Artifact
+        run: cp build/zephyr/zmk.uf2 corne_right.uf2
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: corne_firmware
+          path: |
+            corne_dongle.uf2
+            corne_left.uf2
+            corne_right.uf2
